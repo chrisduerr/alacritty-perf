@@ -14,7 +14,7 @@ use std::collections::HashMap;
 
 use actix_web::http::Method;
 use actix_web::{App, FutureResponse, HttpMessage, HttpRequest, HttpResponse};
-use futures::future::Future;
+use futures::future::{self, Future};
 use ring::signature;
 use untrusted::Input;
 
@@ -29,7 +29,10 @@ struct Notification {}
 fn travis_notification(req: HttpRequest) -> FutureResponse<HttpResponse> {
     // Obtain signature and encode it using base64
     let enc_sig = {
-        let sig = req.headers().get("Signature").unwrap().as_bytes();
+        let sig = match req.headers().get("Signature") {
+            Some(sig) => sig.as_bytes(),
+            None => return Box::new(future::ok(HttpResponse::Forbidden().into())),
+        };
         base64::encode(sig).into_bytes()
     };
 
