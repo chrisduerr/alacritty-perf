@@ -1,0 +1,14 @@
+[package]
+name = "alacritty-perf"
+version = "0.1.0"
+authors = ["Christian Duerr <contact@christianduerr.com>"]
+
+[dependencies]
+clippy = { version = "*", optional = true }
+serde_derive = "1.0.59"
+actix-web = "0.6.9"
+untrusted = "0.5.1"
+futures = "0.1.0"
+base64 = "0.9.1"
+serde = "1.0.59"
+ring = "0.12.1"
