@@ -50,8 +50,8 @@ fn travis_notification(req: HttpRequest) -> FutureResponse<HttpResponse> {
                 if let Err(_) = signature::verify(
                     &signature::RSA_PKCS1_2048_8192_SHA1,
                     Input::from(PUB_KEY),
-                    Input::from(&dec_sig),
                     Input::from(&payload.as_bytes()),
+                    Input::from(&dec_sig),
                 ) {
                     // Request didn't come from Travis
                     eprintln!("INVALID REQUEST");
