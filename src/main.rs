@@ -28,12 +28,15 @@ struct Notification {}
 // See: https://docs.travis-ci.com/user/notifications - Verifying Webhook requests
 fn travis_notification(req: HttpRequest) -> FutureResponse<HttpResponse> {
     // Obtain signature and encode it using base64
-    let enc_sig = {
-        let sig = match req.headers().get("Signature") {
+    let dec_sig = {
+        let sig = match req.headers().get("signature") {
             Some(sig) => sig.as_bytes(),
             None => return Box::new(future::ok(HttpResponse::Forbidden().into())),
         };
-        base64::encode(sig).into_bytes()
+        match base64::decode(sig) {
+            Ok(dec_sig) => dec_sig,
+            Err(_) => return Box::new(future::ok(HttpResponse::Forbidden().into())),
+        }
     };
 
     Box::new(
@@ -47,7 +50,7 @@ fn travis_notification(req: HttpRequest) -> FutureResponse<HttpResponse> {
                 if let Err(_) = signature::verify(
                     &signature::RSA_PKCS1_2048_8192_SHA1,
                     Input::from(PUB_KEY),
-                    Input::from(&enc_sig),
+                    Input::from(&dec_sig),
                     Input::from(&payload.as_bytes()),
                 ) {
                     // Request didn't come from Travis
