@@ -8,6 +8,7 @@ extern crate actix_web;
 extern crate base64;
 extern crate futures;
 extern crate ring;
+extern crate sha1;
 extern crate untrusted;
 
 use std::collections::HashMap;
@@ -29,8 +30,8 @@ struct Notification {}
 fn travis_notification(req: HttpRequest) -> FutureResponse<HttpResponse> {
     // Obtain signature and encode it using base64
     let dec_sig = {
-        let sig = match req.headers().get("signature") {
-            Some(sig) => sig.as_bytes(),
+        let sig = match req.headers().get("Signature") {
+            Some(sig) => sig,
             None => return Box::new(future::ok(HttpResponse::Forbidden().into())),
         };
         match base64::decode(sig) {
@@ -45,12 +46,15 @@ fn travis_notification(req: HttpRequest) -> FutureResponse<HttpResponse> {
             .and_then(move |body| {
                 // Get the request payload
                 let payload = body.get("payload").map(|pl| pl.as_str()).unwrap_or("");
+                let mut m = sha1::Sha1::new();
+                m.update(payload.as_bytes());
+                let payload = m.digest().to_string();
 
                 // Verify the payload
                 if let Err(_) = signature::verify(
                     &signature::RSA_PKCS1_2048_8192_SHA1,
                     Input::from(PUB_KEY),
-                    Input::from(&payload.as_bytes()),
+                    Input::from(payload.as_bytes()),
                     Input::from(&dec_sig),
                 ) {
                     // Request didn't come from Travis
