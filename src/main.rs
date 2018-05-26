@@ -33,8 +33,9 @@ static PUB_KEY: &'static [u8] = b"-----BEGIN PUBLIC KEY-----\nMIIBIjANBgkqhkiG9w
 struct Payload {
     pull_request_number: usize,
     pull_request: bool,
-    branch: String,
+    head_commit: String,
     commit: String,
+    branch: String,
 }
 
 // We need to verify that this request came from travis
@@ -94,15 +95,15 @@ fn travis_notification(req: HttpRequest) -> FutureResponse<HttpResponse> {
 
                     // Create path name based on commit/pr
                     let time = Utc::now().format("%Y-%m-%d_%H:%M:%S");
-                    let mut path = if pl.pull_request {
-                        format!("pr-{}", pl.pull_request_number)
+                    let (mut path, commit) = if pl.pull_request {
+                        (format!("pr-{}", pl.pull_request_number), pl.head_commit)
                     } else {
-                        "master".to_owned()
+                        ("master".to_owned(), pl.commit)
                     };
-                    path = format!("{}/{}-{}", path, time, pl.commit);
+                    path = format!("{}/{}-{}", path, time, commit);
 
-                    let command = format!("./headless-bench.sh {} {} &", pl.commit, path);
-                    info!("Running command `{}`...", command);
+                    let command = format!("./headless-bench.sh {} {} &", commit, path);
+                    info!("Running command `{}`", command);
                     if let Err(err) = Command::new("bash")
                         .args(&["-c", &command])
                         .spawn()

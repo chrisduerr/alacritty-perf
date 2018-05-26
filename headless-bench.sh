@@ -6,11 +6,11 @@ commit=$1
 out_path=$2
 
 # Check out the commit and build a release version
-git clone https://github.com/chrisduerr/alacritty 2&> /dev/null || \
-    { echo "Unable to clone repository" && exit }
+rm -rf alacritty
+git clone -q https://github.com/chrisduerr/alacritty
 cd alacritty
-git checkout "$commit" 2&> /dev/null || { echo "Unable to checkout commit" && exit }
-cargo build --release 2&> /dev/null || { echo "Unable to build alacritty" && exit }
+git checkout "$commit"
+cargo build --release 2&> /dev/null || (echo "Unable to build alacritty" && exit)
 cd ..
 
 xvfb="xvfb-run -a -s '-screen 0 1920x1080x24'"
@@ -34,7 +34,4 @@ do
         "cd /source && $xvfb ./alacritty/target/release/alacritty -e bash ./bench.sh $bench $out_path")
     echo "Exit Code: $(docker wait $docker_id)"
 done
-
-# Cleanup
-rm -rf alacritty
 
