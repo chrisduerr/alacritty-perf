@@ -1,19 +1,18 @@
 #!/bin/bash
 
-# Build the project to make `./target/release/alacritty` available
-
 # Check out the commit and build a release version
 commit=$1
 git clone https://github.com/chrisduerr/alacritty
 cd alacritty
 git checkout "$commit"
 cargo build --release
+cd ..
 
 xvfb="xvfb-run -a -s '-screen 0 1920x1080x24'"
 
 # List with benchmarks that should be run
 # Format:
-#     "'name' 'num bytes'"
+#     "'bench --mark' 'num bytes' 'out-file-name'"
 benchmarks=(\
     "'scrolling' '5000000' 'scrolling'" \
     "'alt-screen-random-write' '150000000' 'alt-screen-random-write'" \
@@ -27,14 +26,11 @@ do
     bench="${benchmarks[$i]}"
     echo "Running benchmark $bench"
     docker_id=$(docker run -d -v "$(pwd):/source" undeadleech/vtebench \
-        "cd /source && $xvfb ./target/release/alacritty -e bash ./bench.sh $bench")
+        "cd /source && $xvfb ./alacritty/target/release/alacritty -e bash ./bench.sh $bench $commit")
     docker wait $docker_id
 done
 
-
-find . -maxdepth 1 -iname "*.json" | while read file
-do
-    echo "$file: "
-    cat "$file"
-done
+# Cleanup
+cd ..
+rm -rf alacritty
 
