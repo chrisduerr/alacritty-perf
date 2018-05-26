@@ -9,10 +9,15 @@ extern crate base64;
 extern crate futures;
 extern crate openssl;
 extern crate serde_json;
+#[macro_use]
+extern crate log;
+extern crate env_logger;
+extern crate chrono;
 
 use std::collections::HashMap;
 use std::process::Command;
 
+use chrono::offset::Utc;
 use actix_web::http::Method;
 use actix_web::{App, FutureResponse, HttpMessage, HttpRequest, HttpResponse};
 use futures::future::{self, Future};
@@ -26,23 +31,35 @@ static PUB_KEY: &'static [u8] = b"-----BEGIN PUBLIC KEY-----\nMIIBIjANBgkqhkiG9w
 
 #[derive(Deserialize)]
 struct Payload {
+    pull_request_number: usize,
+    pull_request: bool,
+    branch: String,
     commit: String,
 }
 
 // We need to verify that this request came from travis
 // See: https://docs.travis-ci.com/user/notifications - Verifying Webhook requests
 fn travis_notification(req: HttpRequest) -> FutureResponse<HttpResponse> {
+    info!("Received new travis notification");
+
     // Obtain signature and encode it using base64
     let dec_sig = {
         let sig = match req.headers().get("Signature") {
             Some(sig) => sig,
-            None => return Box::new(future::ok(HttpResponse::Forbidden().into())),
+            None => {
+                warn!("Signature header missing");
+                return Box::new(future::ok(HttpResponse::Forbidden().into()));
+            }
         };
         match base64::decode(sig) {
             Ok(dec_sig) => dec_sig,
-            Err(_) => return Box::new(future::ok(HttpResponse::Forbidden().into())),
+            Err(_) => {
+                warn!("Unable to decode signature as base64");
+                return Box::new(future::ok(HttpResponse::Forbidden().into()));
+            }
         }
     };
+    info!("Signature successfully decoded");
 
     Box::new(
         req.urlencoded::<HashMap<String, String>>()
@@ -56,18 +73,46 @@ fn travis_notification(req: HttpRequest) -> FutureResponse<HttpResponse> {
                 let pkey = PKey::from_rsa(Rsa::public_key_from_pem(PUB_KEY).unwrap()).unwrap();
                 let mut verifier = Verifier::new(MessageDigest::sha1(), &pkey).unwrap();
                 if let Err(_) = verifier.update(&payload.as_bytes()) {
+                    warn!("Unable to update verifier with payload");
                     return Ok(HttpResponse::Forbidden().into());
                 }
                 if let Ok(true) = verifier.verify(&dec_sig) {
+                    info!("Request verification successful");
                     let pl: Payload = match serde_json::from_str(&payload) {
                         Ok(pl) => pl,
-                        Err(_) => return Ok(HttpResponse::Forbidden().into()),
+                        Err(err) => {
+                            error!("Unable to deserialize payload: {}", err);
+                            return Ok(HttpResponse::Forbidden().into());
+                        }
                     };
-                    let command = format!("./headless-bench.sh {} &", pl.commit);
-                    Command::new("bash")
+
+                    // Don't benchmark commits/PRs to branches
+                    if pl.branch != "master" {
+                        info!("Branch commit detected, skipping benchmarks");
+                        return Ok(HttpResponse::Ok().into());
+                    }
+
+                    // Create path name based on commit/pr
+                    let time = Utc::now().format("%Y-%m-%d_%H:%M:%S");
+                    let mut path = if pl.pull_request {
+                        format!("pr-{}", pl.pull_request_number)
+                    } else {
+                        "master".to_owned()
+                    };
+                    path = format!("{}/{}-{}", path, time, pl.commit);
+
+                    let command = format!("./headless-bench.sh {} {} &", pl.commit, path);
+                    info!("Running command `{}`...", command);
+                    if let Err(err) = Command::new("bash")
                         .args(&["-c", &command])
                         .spawn()
-                        .expect("Unable to start benchmark");
+                        .and_then(|mut cmd| cmd.wait())
+                    {
+                        error!("Unable to start benchmark: {}", err);
+                    } else {
+                        info!("Successfully started benchmark");
+                    }
+
                     return Ok(HttpResponse::Ok().into());
                 }
 
@@ -78,6 +123,10 @@ fn travis_notification(req: HttpRequest) -> FutureResponse<HttpResponse> {
 }
 
 fn main() {
+    env_logger::init();
+    info!("Logger started successfully");
+
+    info!("Starting server...");
     actix_web::server::new(|| {
         App::new().resource("/notify", |r| {
             r.method(Method::POST).with(travis_notification)

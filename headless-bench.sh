@@ -1,7 +1,11 @@
 #!/bin/bash
 
-# Check out the commit and build a release version
+# Example usage:
+#     ./headless-bench.sh a7sac pr-4/2018-06-12_14:44:03-a7sac
 commit=$1
+out_path=$2
+
+# Check out the commit and build a release version
 git clone https://github.com/chrisduerr/alacritty
 cd alacritty
 git checkout "$commit"
@@ -14,10 +18,10 @@ xvfb="xvfb-run -a -s '-screen 0 1920x1080x24'"
 # Format:
 #     "'bench --mark' 'num bytes' 'out-file-name'"
 benchmarks=(\
-    "'scrolling' '5000000' 'scrolling'" \
+    "'scrolling' '3000000' 'scrolling'" \
     "'alt-screen-random-write' '150000000' 'alt-screen-random-write'" \
-    "'scrolling-in-region --lines-from-bottom 1' '5000000' 'scrolling-in-region-1'" \
-    "'scrolling-in-region --lines-from-bottom 50' '5000000' 'scrolling-in-region-50'" \
+    "'scrolling-in-region --lines-from-bottom 1' '3000000' 'scrolling-in-region-1'" \
+    "'scrolling-in-region --lines-from-bottom 50' '3000000' 'scrolling-in-region-50'" \
     "'unicode-random-write' '10000000' 'unicode-random-write'")
 
 # Run all benchmarks with docker
@@ -26,11 +30,10 @@ do
     bench="${benchmarks[$i]}"
     echo "Running benchmark $bench"
     docker_id=$(docker run -d -v "$(pwd):/source" undeadleech/vtebench \
-        "cd /source && $xvfb ./alacritty/target/release/alacritty -e bash ./bench.sh $bench $commit")
+        "cd /source && $xvfb ./alacritty/target/release/alacritty -e bash ./bench.sh $bench $out_path")
     docker wait $docker_id
 done
 
 # Cleanup
-cd ..
 rm -rf alacritty
 
