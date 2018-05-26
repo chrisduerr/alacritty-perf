@@ -46,15 +46,13 @@ fn travis_notification(req: HttpRequest) -> FutureResponse<HttpResponse> {
             .and_then(move |body| {
                 // Get the request payload
                 let payload = body.get("payload").map(|pl| pl.as_str()).unwrap_or("");
-                let mut m = sha1::Sha1::new();
-                m.update(payload.as_bytes());
-                let payload = m.digest().to_string();
+                let payload = sha1::Sha1::from(payload).hexdigest();
 
                 // Verify the payload
                 if let Err(_) = signature::verify(
                     &signature::RSA_PKCS1_2048_8192_SHA1,
                     Input::from(PUB_KEY),
-                    Input::from(payload.as_bytes()),
+                    Input::from(&payload.as_bytes()),
                     Input::from(&dec_sig),
                 ) {
                     // Request didn't come from Travis
