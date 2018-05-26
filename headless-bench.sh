@@ -10,7 +10,7 @@ rm -rf alacritty
 git clone -q https://github.com/chrisduerr/alacritty
 cd alacritty
 git checkout "$commit"
-cargo build --release 2&> /dev/null || (echo "Unable to build alacritty" && exit)
+cargo build --release
 cd ..
 
 xvfb="xvfb-run -a -s '-screen 0 1920x1080x24'"

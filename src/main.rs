@@ -11,16 +11,18 @@ extern crate openssl;
 extern crate serde_json;
 #[macro_use]
 extern crate log;
-extern crate env_logger;
 extern crate chrono;
+extern crate env_logger;
 
 use std::collections::HashMap;
 use std::process::Command;
 
-use chrono::offset::Utc;
 use actix_web::http::Method;
 use actix_web::{App, FutureResponse, HttpMessage, HttpRequest, HttpResponse};
+use chrono::offset::Utc;
+use env_logger::Builder;
 use futures::future::{self, Future};
+use log::LevelFilter;
 use openssl::hash::MessageDigest;
 use openssl::pkey::PKey;
 use openssl::rsa::Rsa;
@@ -124,7 +126,7 @@ fn travis_notification(req: HttpRequest) -> FutureResponse<HttpResponse> {
 }
 
 fn main() {
-    env_logger::init();
+    Builder::new().filter_level(LevelFilter::Info).init();
     info!("Logger started successfully");
 
     info!("Starting server...");
