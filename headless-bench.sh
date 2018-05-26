@@ -6,10 +6,11 @@ commit=$1
 out_path=$2
 
 # Check out the commit and build a release version
-git clone https://github.com/chrisduerr/alacritty
+git clone https://github.com/chrisduerr/alacritty 2&> /dev/null || \
+    { echo "Unable to clone repository" && exit }
 cd alacritty
-git checkout "$commit"
-cargo build --release
+git checkout "$commit" 2&> /dev/null || { echo "Unable to checkout commit" && exit }
+cargo build --release 2&> /dev/null || { echo "Unable to build alacritty" && exit }
 cd ..
 
 xvfb="xvfb-run -a -s '-screen 0 1920x1080x24'"
@@ -31,7 +32,7 @@ do
     echo "Running benchmark $bench"
     docker_id=$(docker run -d -v "$(pwd):/source" undeadleech/vtebench \
         "cd /source && $xvfb ./alacritty/target/release/alacritty -e bash ./bench.sh $bench $out_path")
-    docker wait $docker_id
+    echo "Exit Code: $(docker wait $docker_id)"
 done
 
 # Cleanup
