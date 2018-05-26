@@ -14,5 +14,5 @@ vtebench -w $(tput cols) -h $(tput lines) -sb $bytes $bench > "/$name.vte"
 mkdir -p "/source/results/$commit"
 
 # Run the benchmark and write output to `$BENCH.md`
-hyperfine --print-stdout --export-markdown "/source/$name.md" "cat /$name.vte"
+hyperfine --print-stdout --export-json "/source/results/$commit/$name.json" --export-markdown "/source/results/$commit/$name.md" "cat /$name.vte"
 
