@@ -7,17 +7,17 @@ extern crate serde_derive;
 extern crate actix_web;
 extern crate base64;
 extern crate futures;
-extern crate ring;
-extern crate sha1;
-extern crate untrusted;
+extern crate openssl;
 
 use std::collections::HashMap;
 
 use actix_web::http::Method;
 use actix_web::{App, FutureResponse, HttpMessage, HttpRequest, HttpResponse};
 use futures::future::{self, Future};
-use ring::signature;
-use untrusted::Input;
+use openssl::hash::MessageDigest;
+use openssl::pkey::PKey;
+use openssl::rsa::Rsa;
+use openssl::sign::Verifier;
 
 // Travis public key, can be found in https://api.travis-ci.com/config
 static PUB_KEY: &'static [u8] = b"-----BEGIN PUBLIC KEY-----\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAvtjdLkS+FP+0fPC09j25\ny/PiuYDDivIT86COVedvlElk99BBYTrqNaJybxjXbIZ1Q6xFNhOY+iTcBr4E1zJu\ntizF3Xi0V9tOuP/M8Wn4Y/1lCWbQKlWrNQuqNBmhovF4K3mDCYswVbpgTmp+JQYu\nBm9QMdieZMNry5s6aiMA9aSjDlNyedvSENYo18F+NYg1J0C0JiPYTxheCb4optr1\n5xNzFKhAkuGs4XTOA5C7Q06GCKtDNf44s/CVE30KODUxBi0MCKaxiXw/yy55zxX2\n/YdGphIyQiA5iO1986ZmZCLLW8udz9uhW5jUr3Jlp9LbmphAC61bVSf4ou2YsJaN\n0QIDAQAB\n-----END PUBLIC KEY-----";
@@ -46,22 +46,23 @@ fn travis_notification(req: HttpRequest) -> FutureResponse<HttpResponse> {
             .and_then(move |body| {
                 // Get the request payload
                 let payload = body.get("payload").map(|pl| pl.as_str()).unwrap_or("");
-                let payload = sha1::Sha1::from(payload).hexdigest();
 
                 // Verify the payload
-                if let Err(_) = signature::verify(
-                    &signature::RSA_PKCS1_2048_8192_SHA1,
-                    Input::from(PUB_KEY),
-                    Input::from(&payload.as_bytes()),
-                    Input::from(&dec_sig),
-                ) {
-                    // Request didn't come from Travis
+                // Unwraps are safe becase public key is hardcoded
+                let pkey = PKey::from_rsa(Rsa::public_key_from_pem(PUB_KEY).unwrap()).unwrap();
+                let mut verifier = Verifier::new(MessageDigest::sha1(), &pkey).unwrap();
+                if let Err(_) = verifier.update(&payload.as_bytes()) {
                     eprintln!("INVALID REQUEST");
                     return Ok(HttpResponse::Forbidden().into());
                 }
+                if let Ok(true) = verifier.verify(&dec_sig) {
+                    println!("VALID REQUEST");
+                    return Ok(HttpResponse::Ok().into());
+                }
 
-                println!("VALID REQUEST");
-                Ok(HttpResponse::Ok().into())
+                // Request didn't come from Travis
+                eprintln!("INVALID REQUEST");
+                Ok(HttpResponse::Forbidden().into())
             }),
     )
 }
