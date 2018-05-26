@@ -10,6 +10,7 @@ extern crate futures;
 extern crate openssl;
 
 use std::collections::HashMap;
+use std::process::Command;
 
 use actix_web::http::Method;
 use actix_web::{App, FutureResponse, HttpMessage, HttpRequest, HttpResponse};
@@ -52,16 +53,17 @@ fn travis_notification(req: HttpRequest) -> FutureResponse<HttpResponse> {
                 let pkey = PKey::from_rsa(Rsa::public_key_from_pem(PUB_KEY).unwrap()).unwrap();
                 let mut verifier = Verifier::new(MessageDigest::sha1(), &pkey).unwrap();
                 if let Err(_) = verifier.update(&payload.as_bytes()) {
-                    eprintln!("INVALID REQUEST");
                     return Ok(HttpResponse::Forbidden().into());
                 }
                 if let Ok(true) = verifier.verify(&dec_sig) {
-                    println!("VALID REQUEST");
+                    Command::new("bash")
+                        .args(&["-c", "./headless-bench.sh &"])
+                        .spawn()
+                        .expect("Unable to start benchmark");
                     return Ok(HttpResponse::Ok().into());
                 }
 
                 // Request didn't come from Travis
-                eprintln!("INVALID REQUEST");
                 Ok(HttpResponse::Forbidden().into())
             }),
     )
