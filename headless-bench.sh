@@ -1,6 +1,12 @@
 #!/bin/bash
 
 # Build the project to make `./target/release/alacritty` available
+
+# Check out the commit and build a release version
+commit=$1
+git clone https://github.com/chrisduerr/alacritty
+cd alacritty
+git checkout "$commit"
 cargo build --release
 
 xvfb="xvfb-run -a -s '-screen 0 1920x1080x24'"
@@ -20,9 +26,9 @@ for i in ${!benchmarks[@]}
 do
     bench="${benchmarks[$i]}"
     echo "Running benchmark $bench"
-    docker_id=$(sudo docker run -d -v "$(pwd):/source" undeadleech/vtebench \
+    docker_id=$(docker run -d -v "$(pwd):/source" undeadleech/vtebench \
         "cd /source && $xvfb ./target/release/alacritty -e bash ./bench.sh $bench")
-    sudo docker wait $docker_id
+    docker wait $docker_id
 done
 
 

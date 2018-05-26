@@ -8,6 +8,7 @@ extern crate actix_web;
 extern crate base64;
 extern crate futures;
 extern crate openssl;
+extern crate serde_json;
 
 use std::collections::HashMap;
 use std::process::Command;
@@ -24,7 +25,9 @@ use openssl::sign::Verifier;
 static PUB_KEY: &'static [u8] = b"-----BEGIN PUBLIC KEY-----\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAvtjdLkS+FP+0fPC09j25\ny/PiuYDDivIT86COVedvlElk99BBYTrqNaJybxjXbIZ1Q6xFNhOY+iTcBr4E1zJu\ntizF3Xi0V9tOuP/M8Wn4Y/1lCWbQKlWrNQuqNBmhovF4K3mDCYswVbpgTmp+JQYu\nBm9QMdieZMNry5s6aiMA9aSjDlNyedvSENYo18F+NYg1J0C0JiPYTxheCb4optr1\n5xNzFKhAkuGs4XTOA5C7Q06GCKtDNf44s/CVE30KODUxBi0MCKaxiXw/yy55zxX2\n/YdGphIyQiA5iO1986ZmZCLLW8udz9uhW5jUr3Jlp9LbmphAC61bVSf4ou2YsJaN\n0QIDAQAB\n-----END PUBLIC KEY-----";
 
 #[derive(Deserialize)]
-struct Notification {}
+struct Payload {
+    commit: String,
+}
 
 // We need to verify that this request came from travis
 // See: https://docs.travis-ci.com/user/notifications - Verifying Webhook requests
@@ -56,8 +59,13 @@ fn travis_notification(req: HttpRequest) -> FutureResponse<HttpResponse> {
                     return Ok(HttpResponse::Forbidden().into());
                 }
                 if let Ok(true) = verifier.verify(&dec_sig) {
+                    let pl: Payload = match serde_json::from_str(&payload) {
+                        Ok(pl) => pl,
+                        Err(_) => return Ok(HttpResponse::Forbidden().into()),
+                    };
+                    let command = format!("./headless-bench.sh {} &", pl.commit);
                     Command::new("bash")
-                        .args(&["-c", "./headless-bench.sh &"])
+                        .args(&["-c", &command])
                         .spawn()
                         .expect("Unable to start benchmark");
                     return Ok(HttpResponse::Ok().into());

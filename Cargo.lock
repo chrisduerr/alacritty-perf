@@ -96,6 +96,7 @@ dependencies = [
  "openssl 0.10.8 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde 1.0.59 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde_derive 1.0.59 (registry+https://github.com/rust-lang/crates.io-index)",
+ "serde_json 1.0.17 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
