@@ -6,9 +6,9 @@ commit=$1
 out_path=$2
 
 # Check out the commit and build a release version
-rm -rf alacritty
-git clone -q https://github.com/chrisduerr/alacritty
-cd alacritty
+dir_name="alacritty-$commit"
+git clone -q https://github.com/chrisduerr/alacritty "$dir_name"
+cd "$dir_name"
 git checkout "$commit"
 cargo build --release
 cd ..
@@ -31,7 +31,10 @@ do
     bench="${benchmarks[$i]}"
     echo "Running benchmark $bench"
     docker_id=$(docker run -d -v "$(pwd):/source" undeadleech/vtebench \
-        "cd /source && $xvfb ./alacritty/target/release/alacritty -e bash ./bench.sh $bench $out_path")
+        "cd /source && $xvfb ./$dir_name/target/release/alacritty -e bash ./bench.sh $bench $out_path")
     echo "Exit Code: $(docker wait $docker_id)"
 done
+
+# Remove build directory
+rm -rf "$dir_name"
 
