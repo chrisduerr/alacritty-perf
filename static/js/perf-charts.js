@@ -33,7 +33,7 @@ function add_chart(bench) {
 
 
 function dataResponseCallback(body) {
-  var data_json = JSON.parse(demo_json);
+  var data_json = JSON.parse(body);
   for (var i = 0; i < data_json.length; i++) {
     var chart = add_chart(data_json[i]);
   }
@@ -45,5 +45,5 @@ xmlHttp.onreadystatechange = function() {
         dataResponseCallback(xmlHttp.responseText);
     }
 }
-xmlHttp.open("GET", "https://127.0.0.1:8080/data", true);
+xmlHttp.open("GET", "/data", true);
 xmlHttp.send(null);

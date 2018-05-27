@@ -21,7 +21,7 @@ use std::io::Read;
 use std::process::Command;
 use std::rc::Rc;
 
-use actix_web::http::{Method, StatusCode};
+use actix_web::http::Method;
 use actix_web::{App, Binary, Body, FutureResponse, HttpMessage, HttpRequest, HttpResponse};
 use chrono::offset::Utc;
 use env_logger::Builder;
@@ -174,15 +174,16 @@ fn results(_: HttpRequest) -> HttpResponse {
         .into_iter()
         .filter_entry(|e| e.metadata().map(|m| m.is_file()).unwrap_or(false))
     {
-        let entry = entry.unwrap();
-        let bench = entry_to_result(entry);
-        if let Some(bench) = bench {
-            // Merge benchmark with existing benchmarks
-            if benchmarks.contains_key(&bench.name) {
-                let benches = benchmarks.get_mut(&bench.name).unwrap();
-                merge_benchmarks(benches, bench);
-            } else {
-                benchmarks.insert(bench.name.clone(), bench);
+        if let Ok(entry) = entry {
+            let bench = entry_to_result(entry);
+            if let Some(bench) = bench {
+                // Merge benchmark with existing benchmarks
+                if benchmarks.contains_key(&bench.name) {
+                    let benches = benchmarks.get_mut(&bench.name).unwrap();
+                    merge_benchmarks(benches, bench);
+                } else {
+                    benchmarks.insert(bench.name.clone(), bench);
+                }
             }
         }
     }
@@ -195,7 +196,7 @@ fn results(_: HttpRequest) -> HttpResponse {
 
     let json = serde_json::to_string(&bench_vec).unwrap_or_else(|_| String::from("[]"));
     let body = Body::Binary(Binary::SharedString(Rc::new(json)));
-    HttpResponse::with_body(StatusCode::OK, body).into()
+    HttpResponse::Ok().content_type("application/json").body(body).into()
 }
 
 // Merge a single benchmark result into existing results
