@@ -13,12 +13,16 @@ extern crate serde_json;
 extern crate log;
 extern crate chrono;
 extern crate env_logger;
+extern crate walkdir;
 
 use std::collections::HashMap;
+use std::fs::File;
+use std::io::Read;
 use std::process::Command;
+use std::rc::Rc;
 
-use actix_web::http::Method;
-use actix_web::{App, FutureResponse, HttpMessage, HttpRequest, HttpResponse};
+use actix_web::http::{Method, StatusCode};
+use actix_web::{App, Binary, Body, FutureResponse, HttpMessage, HttpRequest, HttpResponse};
 use chrono::offset::Utc;
 use env_logger::Builder;
 use futures::future::{self, Future};
@@ -27,9 +31,13 @@ use openssl::hash::MessageDigest;
 use openssl::pkey::PKey;
 use openssl::rsa::Rsa;
 use openssl::sign::Verifier;
+use walkdir::{DirEntry, WalkDir};
 
 // Travis public key, can be found in https://api.travis-ci.com/config
 static PUB_KEY: &'static [u8] = b"-----BEGIN PUBLIC KEY-----\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAvtjdLkS+FP+0fPC09j25\ny/PiuYDDivIT86COVedvlElk99BBYTrqNaJybxjXbIZ1Q6xFNhOY+iTcBr4E1zJu\ntizF3Xi0V9tOuP/M8Wn4Y/1lCWbQKlWrNQuqNBmhovF4K3mDCYswVbpgTmp+JQYu\nBm9QMdieZMNry5s6aiMA9aSjDlNyedvSENYo18F+NYg1J0C0JiPYTxheCb4optr1\n5xNzFKhAkuGs4XTOA5C7Q06GCKtDNf44s/CVE30KODUxBi0MCKaxiXw/yy55zxX2\n/YdGphIyQiA5iO1986ZmZCLLW8udz9uhW5jUr3Jlp9LbmphAC61bVSf4ou2YsJaN\n0QIDAQAB\n-----END PUBLIC KEY-----";
+
+// Directory with all the benchmarks
+static RESULTS_DIR: &'static str = "./results/";
 
 #[derive(Deserialize)]
 struct Payload {
@@ -96,7 +104,8 @@ fn travis_notification(req: HttpRequest) -> FutureResponse<HttpResponse> {
                     }
 
                     // Create path name based on commit/pr
-                    let time = Utc::now().format("%Y-%m-%d_%H:%M:%S");
+                    // Following https://www.w3.org/TR/NOTE-datetime (2018-12-31T12:45:45Z)
+                    let time = Utc::now().format("%Y-%m-%dT%H:%M:%SZ");
                     let (mut path, commit) = if pl.pull_request {
                         (format!("pr-{}", pl.pull_request_number), pl.head_commit)
                     } else {
@@ -125,15 +134,135 @@ fn travis_notification(req: HttpRequest) -> FutureResponse<HttpResponse> {
     )
 }
 
+#[derive(Serialize)]
+struct Bench {
+    name: String,
+    branches: Vec<Branch>,
+}
+
+#[derive(Serialize)]
+struct Branch {
+    name: String,
+    results: Vec<Result>,
+}
+
+#[derive(Serialize)]
+struct Result {
+    timestamp: String,
+    mean: f64,
+}
+
+#[derive(Deserialize)]
+struct HyperfineJson {
+    results: Vec<HyperfineResult>,
+}
+
+#[derive(Deserialize)]
+struct HyperfineResult {
+    mean: f64,
+}
+
+fn results(_: HttpRequest) -> HttpResponse {
+    info!("Received data request");
+
+    // Hashmap for accessing benchmarks by name
+    let mut benchmarks = HashMap::new();
+
+    for entry in WalkDir::new(RESULTS_DIR)
+        .min_depth(3)
+        .max_depth(3)
+        .into_iter()
+        .filter_entry(|e| e.metadata().map(|m| m.is_file()).unwrap_or(false))
+    {
+        let entry = entry.unwrap();
+        let bench = entry_to_result(entry);
+        if let Some(bench) = bench {
+            // Merge benchmark with existing benchmarks
+            if benchmarks.contains_key(&bench.name) {
+                let benches = benchmarks.get_mut(&bench.name).unwrap();
+                merge_benchmarks(benches, bench);
+            } else {
+                benchmarks.insert(bench.name.clone(), bench);
+            }
+        }
+    }
+
+    // Convert benchmarks hashmap to an array
+    let mut bench_vec = Vec::new();
+    for (_, bench) in benchmarks.drain() {
+        bench_vec.push(bench);
+    }
+
+    let json = serde_json::to_string(&bench_vec).unwrap_or_else(|_| String::from("[]"));
+    let body = Body::Binary(Binary::SharedString(Rc::new(json)));
+    HttpResponse::with_body(StatusCode::OK, body).into()
+}
+
+// Merge a single benchmark result into existing results
+fn merge_benchmarks(benches: &mut Bench, mut bench: Bench) {
+    // Add single data point to existing branch
+    for branch in benches.branches.iter_mut() {
+        if branch.name == bench.branches[0].name {
+            branch
+                .results
+                .push(bench.branches.remove(0).results.remove(0));
+        }
+    }
+
+    // If branch does not exist already, add complete branch
+    benches.branches.push(bench.branches.remove(0));
+}
+
+fn entry_to_result(entry: DirEntry) -> Option<Bench> {
+    // Result's name
+    let name = entry.file_name().to_string_lossy();
+    if !name.ends_with(".json") {
+        return None;
+    }
+    let name = &name[..name.len() - ".json".len()];
+
+    // Result's commit timestamp
+    let parent = entry.path().parent()?;
+    let commit = parent.file_name()?.to_string_lossy();
+    let timestamp_len = "YYYY-MM-DDTHH:MM:SSZ".len();
+    let timestamp = &commit[..timestamp_len];
+
+    // Result's branch
+    let branch_parent = parent.parent()?;
+    let branch = branch_parent.file_name()?.to_string_lossy();
+
+    // Result's mean time
+    let mut content = String::new();
+    File::open(entry.path())
+        .and_then(|mut f| f.read_to_string(&mut content))
+        .ok()?;
+    let hyperfine: HyperfineJson = serde_json::from_str(&content).ok()?;
+    let mean = hyperfine.results[0].mean;
+
+    // Create a benchmark with just a single data point
+    Some(Bench {
+        name: name.to_owned(),
+        branches: vec![Branch {
+            name: branch.to_string(),
+            results: vec![Result {
+                timestamp: timestamp.to_owned(),
+                mean,
+            }],
+        }],
+    })
+}
+
 fn main() {
     Builder::new().filter_level(LevelFilter::Info).init();
     info!("Logger started successfully");
 
     info!("Starting server...");
     actix_web::server::new(|| {
-        App::new().resource("/notify", |r| {
-            r.method(Method::POST).with(travis_notification)
-        })
+        App::new()
+            .resource("/notify", |r| {
+                r.method(Method::POST).with(travis_notification)
+            })
+            .resource("/data", |r| r.method(Method::GET).with(results))
     }).bind("127.0.0.1:8080")
         .expect("Unable to bind to address")
         .run();
