@@ -1,4 +1,4 @@
-#container {
+#chart-container {
   grid-template-rows: repeat(6, 16%);
   display: grid;
 }

@@ -14,8 +14,5 @@ vtebench -w $(tput cols) -h $(tput lines) -sb $bytes $bench > "/$name.vte"
 mkdir -p "/source/results/$out_path"
 
 # Run the benchmark and write output to `$BENCH.md`
-hyperfine --show-output --export-json "/source/results/$out_path/$name.json" --export-markdown "/source/results/$out_path/$name.md" "cat /$name.vte"
-
-# Convert markdown to html
-markdown -o "/source/results/$out_path/$name.html" "/source/results/$out_path/$name.md"
+hyperfine --show-output --export-json "/source/results/$out_path/$name.json" "cat /$name.vte"
 
