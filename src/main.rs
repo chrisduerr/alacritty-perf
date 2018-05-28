@@ -92,7 +92,10 @@ fn travis_notification(req: HttpRequest) -> FutureResponse<HttpResponse> {
                     let pl: Payload = match serde_json::from_str(&payload) {
                         Ok(pl) => pl,
                         Err(err) => {
-                            error!("Unable to deserialize payload: {}", err);
+                            error!(
+                                "Unable to deserialize payload: {}\nPayload:\n{}",
+                                err, payload
+                            );
                             return Ok(HttpResponse::Forbidden().into());
                         }
                     };
@@ -196,7 +199,10 @@ fn results(_: HttpRequest) -> HttpResponse {
 
     let json = serde_json::to_string(&bench_vec).unwrap_or_else(|_| String::from("[]"));
     let body = Body::Binary(Binary::SharedString(Rc::new(json)));
-    HttpResponse::Ok().content_type("application/json").body(body).into()
+    HttpResponse::Ok()
+        .content_type("application/json")
+        .body(body)
+        .into()
 }
 
 // Merge a single benchmark result into existing results

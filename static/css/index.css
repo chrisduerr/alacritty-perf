@@ -1,5 +1,5 @@
 #chart-container {
-  grid-template-rows: repeat(6, 16%);
+  grid-template-columns: repeat(6, 16%);
   display: grid;
 }
 

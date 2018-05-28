@@ -1,12 +1,15 @@
 #!/bin/bash
 
+# Wait for other processes to exit before starting the benchmarking
+flock -F /tmp/headless-bench.lock -c "sleep 10"
+
 # Example usage:
 #     ./headless-bench.sh a7sac pr-4/2018-06-12_14:44:03-a7sac
 commit=$1
 out_path=$2
 
 # Check out the commit and build a release version
-dir_name="alacritty-$commit"
+dir_name="alacritty-$commit-$(date '+%N')"
 git clone -q https://github.com/chrisduerr/alacritty "$dir_name"
 cd "$dir_name"
 git checkout "$commit"
