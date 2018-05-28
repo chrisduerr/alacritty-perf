@@ -213,6 +213,7 @@ fn merge_benchmarks(benches: &mut Bench, mut bench: Bench) {
             branch
                 .results
                 .push(bench.branches.remove(0).results.remove(0));
+            branch.results.sort_by(|a, b| a.timestamp.cmp(&b.timestamp));
             return;
         }
     }
