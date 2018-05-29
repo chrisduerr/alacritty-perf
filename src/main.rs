@@ -117,7 +117,7 @@ fn travis_notification(req: HttpRequest) -> FutureResponse<HttpResponse> {
                     };
                     path = format!("{}/{}-{}", path, time, commit);
 
-                    let command = format!("./headless-bench.sh {} {} &", commit, path);
+                    let command = format!("./headless-bench.sh \"{}\" \"{}\" &", commit, path);
                     info!("Running command `{}`", command);
                     if let Err(err) = Command::new("bash")
                         .args(&["-c", &command])
