@@ -38,7 +38,6 @@ do
     docker_id=$(docker run -d -v "$(pwd):/source" undeadleech/vtebench \
         "cd /source && $xvfb ./$dir_name/target/release/alacritty -e bash ./bench.sh $bench \"$out_path\"")
     echo "Exit Code: $(docker wait $docker_id)"
-    exit
 done
 
 # Remove build directory
