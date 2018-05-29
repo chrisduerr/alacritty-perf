@@ -41,6 +41,7 @@ static RESULTS_DIR: &'static str = "./results/";
 
 #[derive(Deserialize)]
 struct Payload {
+    pull_request_title: String,
     pull_request_number: usize,
     pull_request: bool,
     head_commit: String,
@@ -91,11 +92,8 @@ fn travis_notification(req: HttpRequest) -> FutureResponse<HttpResponse> {
                     info!("Request verification successful");
                     let pl: Payload = match serde_json::from_str(&payload) {
                         Ok(pl) => pl,
-                        Err(err) => {
-                            error!(
-                                "Unable to deserialize payload: {}\nPayload:\n{}",
-                                err, payload
-                            );
+                        Err(_) => {
+                            warn!("Skipping payload with invalid format");
                             return Ok(HttpResponse::Forbidden().into());
                         }
                     };
@@ -110,9 +108,12 @@ fn travis_notification(req: HttpRequest) -> FutureResponse<HttpResponse> {
                     // Following https://www.w3.org/TR/NOTE-datetime (2018-12-31T12:45:45Z)
                     let time = Utc::now().format("%Y-%m-%dT%H:%M:%SZ");
                     let (mut path, commit) = if pl.pull_request {
-                        (format!("pr-{}", pl.pull_request_number), pl.head_commit)
+                        (
+                            format!("{} (#{})", pl.pull_request_title, pl.pull_request_number),
+                            pl.head_commit,
+                        )
                     } else {
-                        ("master".to_owned(), pl.commit)
+                        ("Master".to_owned(), pl.commit)
                     };
                     path = format!("{}/{}-{}", path, time, commit);
 
