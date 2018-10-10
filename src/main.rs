@@ -237,8 +237,7 @@ fn entry_to_result(entry: DirEntry) -> Option<Bench> {
     File::open(entry.path())
         .and_then(|mut f| f.read_to_string(&mut content))
         .ok()?;
-    let avg = content.split(";").collect::<Vec<&str>>()[0];
-    let avg = u128::from_str_radix(avg, 10).ok()?;
+    let avg = u128::from_str_radix(&content, 10).ok()?;
     info!("    AVG: {}", avg);
 
     // Create a benchmark with just a single data point
