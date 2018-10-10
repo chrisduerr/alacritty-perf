@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Wait for other processes to exit before starting the benchmarking
-lock="/tmp/headless-bench.pid"
+lock="/tmp/alacritty-bench.pid"
 exec 200>$lock
 flock 200
 

@@ -169,8 +169,15 @@ fn results(_: HttpRequest) -> HttpResponse {
         .filter_entry(|e| e.metadata().map(|m| m.is_file()).unwrap_or(false))
     {
         if let Ok(entry) = entry {
+            info!("Processing benchmark '{:?}'", entry.path());
             let bench = entry_to_result(entry);
             if let Some(bench) = bench {
+                info!(
+                    "    NAME: {}\n    TIMESTAMP: {}\n    MEAN: {}",
+                    bench.name,
+                    bench.branches[0].results[0].timestamp,
+                    bench.branches[0].results[0].mean
+                );
                 // Merge benchmark with existing benchmarks
                 if benchmarks.contains_key(&bench.name) {
                     let benches = benchmarks.get_mut(&bench.name).unwrap();
@@ -189,6 +196,7 @@ fn results(_: HttpRequest) -> HttpResponse {
     }
 
     let json = serde_json::to_string(&bench_vec).unwrap_or_else(|_| String::from("[]"));
+    info!("Sending Response:\n{}", json);
     let body = Body::Binary(Binary::SharedString(Rc::new(json)));
     HttpResponse::Ok()
         .content_type("application/json")
@@ -216,10 +224,6 @@ fn merge_benchmarks(benches: &mut Bench, mut bench: Bench) {
 fn entry_to_result(entry: DirEntry) -> Option<Bench> {
     // Result's name
     let name = entry.file_name().to_string_lossy();
-    if !name.ends_with(".json") {
-        return None;
-    }
-    let name = &name[..name.len() - ".json".len()];
 
     // Result's commit timestamp
     let parent = entry.path().parent()?;
@@ -241,7 +245,7 @@ fn entry_to_result(entry: DirEntry) -> Option<Bench> {
 
     // Create a benchmark with just a single data point
     Some(Bench {
-        name: name.to_owned(),
+        name: name.into(),
         branches: vec![Branch {
             name: branch.to_string(),
             results: vec![Result {
