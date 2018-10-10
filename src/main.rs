@@ -153,7 +153,7 @@ struct Branch {
 #[derive(Serialize)]
 struct Result {
     timestamp: String,
-    mean: u128,
+    avg: u128,
 }
 
 fn results(_: HttpRequest) -> HttpResponse {
@@ -169,15 +169,9 @@ fn results(_: HttpRequest) -> HttpResponse {
         .filter_entry(|e| e.metadata().map(|m| m.is_file()).unwrap_or(false))
     {
         if let Ok(entry) = entry {
-            info!("Processing benchmark '{:?}'", entry.path());
+            info!("Processing benchmark {:?}", entry.path());
             let bench = entry_to_result(entry);
             if let Some(bench) = bench {
-                info!(
-                    "    NAME: {}\n    TIMESTAMP: {}\n    MEAN: {}",
-                    bench.name,
-                    bench.branches[0].results[0].timestamp,
-                    bench.branches[0].results[0].mean
-                );
                 // Merge benchmark with existing benchmarks
                 if benchmarks.contains_key(&bench.name) {
                     let benches = benchmarks.get_mut(&bench.name).unwrap();
@@ -224,24 +218,28 @@ fn merge_benchmarks(benches: &mut Bench, mut bench: Bench) {
 fn entry_to_result(entry: DirEntry) -> Option<Bench> {
     // Result's name
     let name = entry.file_name().to_string_lossy();
+    info!("    NAME: {}", name);
 
     // Result's commit timestamp
     let parent = entry.path().parent()?;
     let commit = parent.file_name()?.to_string_lossy();
     let timestamp_len = "YYYY-MM-DDTHH:MM:SSZ".len();
     let timestamp = &commit[..timestamp_len];
+    info!("    TIMESTAMP: {}", timestamp);
 
     // Result's branch
     let branch_parent = parent.parent()?;
     let branch = branch_parent.file_name()?.to_string_lossy();
+    info!("    BRANCH: {}", branch);
 
-    // Result's mean time
+    // Result's avg time
     let mut content = String::new();
     File::open(entry.path())
         .and_then(|mut f| f.read_to_string(&mut content))
         .ok()?;
-    let mean = content.split(";").collect::<Vec<&str>>()[0];
-    let mean = u128::from_str_radix(mean, 10).ok()?;
+    let avg = content.split(";").collect::<Vec<&str>>()[0];
+    let avg = u128::from_str_radix(avg, 10).ok()?;
+    info!("    AVG: {}", avg);
 
     // Create a benchmark with just a single data point
     Some(Bench {
@@ -250,7 +248,7 @@ fn entry_to_result(entry: DirEntry) -> Option<Bench> {
             name: branch.to_string(),
             results: vec![Result {
                 timestamp: timestamp.to_owned(),
-                mean,
+                avg,
             }],
         }],
     })

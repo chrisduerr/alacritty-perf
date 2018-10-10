@@ -3,7 +3,7 @@ function parse_series(branch) {
   var series_data = [];
   for (var i = 0; i < branch.results.length; i++) {
     var result = branch.results[i];
-    series_data.push([Date.parse(result.timestamp), result.mean]);
+    series_data.push([Date.parse(result.timestamp), result.avg]);
   }
   return { data: series_data, name: series_name };
 }
