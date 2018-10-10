@@ -115,9 +115,9 @@ fn travis_notification(req: HttpRequest) -> FutureResponse<HttpResponse> {
                     } else {
                         ("Master".to_owned(), pl.commit)
                     };
-                    path = format!("{}/{}-{}", path, time, commit);
+                    path = format!("{}/{}/{}-{}", RESULTS_DIR, path, time, commit);
 
-                    let command = format!("./headless-bench.sh \"{}\" \"{}\" &", commit, path);
+                    let command = format!("./bench.sh \"{}\" \"{}\" &", commit, path);
                     info!("Running command `{}`", command);
                     if let Err(err) = Command::new("bash")
                         .args(&["-c", &command])
@@ -153,17 +153,7 @@ struct Branch {
 #[derive(Serialize)]
 struct Result {
     timestamp: String,
-    mean: f64,
-}
-
-#[derive(Deserialize)]
-struct HyperfineJson {
-    results: Vec<HyperfineResult>,
-}
-
-#[derive(Deserialize)]
-struct HyperfineResult {
-    mean: f64,
+    mean: u128,
 }
 
 fn results(_: HttpRequest) -> HttpResponse {
@@ -246,8 +236,8 @@ fn entry_to_result(entry: DirEntry) -> Option<Bench> {
     File::open(entry.path())
         .and_then(|mut f| f.read_to_string(&mut content))
         .ok()?;
-    let hyperfine: HyperfineJson = serde_json::from_str(&content).ok()?;
-    let mean = hyperfine.results[0].mean;
+    let mean = content.split(";").collect::<Vec<&str>>()[0];
+    let mean = u128::from_str_radix(mean, 10).ok()?;
 
     // Create a benchmark with just a single data point
     Some(Bench {
@@ -273,7 +263,8 @@ fn main() {
                 r.method(Method::POST).with(travis_notification)
             })
             .resource("/data", |r| r.method(Method::GET).with(results))
-    }).bind("127.0.0.1:8080")
-        .expect("Unable to bind to address")
-        .run();
+    })
+    .bind("127.0.0.1:8080")
+    .expect("Unable to bind to address")
+    .run();
 }

@@ -1,18 +1,32 @@
 #!/bin/bash
 
+# Wait for other processes to exit before starting the benchmarking
+lock="/tmp/headless-bench.pid"
+exec 200>$lock
+flock 200
+
 # Example usage:
-#     ./bench.sh scrolling 5000000 scrolling pr-4/a7sac3cashas39sac3810
-bench=$1
-bytes=$2
-name=$3
-out_path=$4
+#     ./headless-bench.sh a7sac pr-4/2018-06-12_14:44:03-a7sac
+commit=$1
+out_path=$2
+regex='s/^test \([^ ]*\).*bench: *\([0-9,]*\).* \([0-9,]*\).$/\1;\2;\3/'
 
-# Generate requested benchmark
-vtebench -w $(tput cols) -h $(tput lines) -sb $bytes $bench > "/$name.vte"
+# Check out the commit
+dir_name="alacritty-$commit-$(date '+%N')"
+git clone --quiet https://github.com/chrisduerr/alacritty "$dir_name"
+cd "$dir_name"
+git reset --hard --quiet "$commit"
 
-# Create required directories
-mkdir -p "/source/results/$out_path"
+# Benchmark this commit
+result=$(cargo bench --features bench 2> /dev/null | grep "... bench:" | sed "$regex")
+cd ..
+for bench in $(echo -e "$result"); do
+    name=$(echo "$bench" | sed 's/\([^;]*\);.*/\1/')
+    avg=$(echo "$bench" | sed 's/.*;\(.*\);.*/\1/' | sed 's/,//')
+    # # dev=$(echo "$bench" | sed 's/.*;\(.*\)/\1/' | sed 's/,//')
+    mkdir -p "$out_path"
+    echo "$avg" > "$out_path/$name"
+done
 
-# Run the benchmark and write output to `$BENCH.md`
-hyperfine --show-output --export-json "/source/results/$out_path/$name.json" "cat /$name.vte"
-
+# Remove build directory
+rm -rf "$dir_name"
