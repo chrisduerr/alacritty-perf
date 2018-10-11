@@ -39,6 +39,9 @@ static PUB_KEY: &'static [u8] = b"-----BEGIN PUBLIC KEY-----\nMIIBIjANBgkqhkiG9w
 // Directory with all the benchmarks
 static RESULTS_DIR: &'static str = "./results";
 
+// Repository which will be allowed to bench from
+static TARGET_REPO: &'static str = "jwilm/alacritty";
+
 #[derive(Deserialize)]
 struct Payload {
     pull_request_title: String,
@@ -53,6 +56,19 @@ struct Payload {
 // See: https://docs.travis-ci.com/user/notifications - Verifying Webhook requests
 fn travis_notification(req: HttpRequest) -> FutureResponse<HttpResponse> {
     info!("Received new travis notification");
+
+    // Make sure jwilm/alacritty repo is target
+    {
+        let target_repo = req
+            .headers()
+            .get("Travis-Repo-Slug")
+            .and_then(|tr| tr.to_str().ok())
+            .unwrap_or("");
+        if target_repo != TARGET_REPO {
+            warn!("Attempted to start benchmark from '{}'.", target_repo);
+            return Box::new(future::ok(HttpResponse::Forbidden().into()));
+        }
+    }
 
     // Obtain signature and encode it using base64
     let dec_sig = {
