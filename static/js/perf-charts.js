@@ -17,6 +17,8 @@ Highcharts.theme = {
     }
   },
   xAxis: {
+    lineColor: '#ccc',
+    tickColor: '#ccc',
   	labels: {
     	style: {
       	color: '#ccc'
@@ -24,6 +26,7 @@ Highcharts.theme = {
     }
   },
   yAxis: {
+    gridLineColor: '#666',
   	title: {
     	style: {
       	color: '#ccc'
@@ -33,6 +36,12 @@ Highcharts.theme = {
     	style: {
       	color: '#ccc'
       }
+    }
+  },
+  tooltip: {
+    backgroundColor: '#222',
+    style: {
+      color: '#ccc'
     }
   }
 };
