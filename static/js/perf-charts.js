@@ -1,3 +1,43 @@
+Highcharts.theme = {
+	colors: ['#ac4142', '#90a959', '#f4bf75', '#6a9fb5', '#aa759f', '#75b5aa', '#752a2a', '#5d742a', '#754e2a', '#2a4e74', '#703664', '#297366'],
+	chart: {
+  	backgroundColor: "#222"
+  },
+  title: {
+  	style: {
+    	color: '#ccc'
+    }
+  },
+  legend: {
+  	itemStyle: {
+    	color: '#ccc'
+    },
+    itemHoverStyle: {
+    	color: '#fff'
+    }
+  },
+  xAxis: {
+  	labels: {
+    	style: {
+      	color: '#ccc'
+      }
+    }
+  },
+  yAxis: {
+  	title: {
+    	style: {
+      	color: '#ccc'
+      }
+    },
+  	labels: {
+    	style: {
+      	color: '#ccc'
+      }
+    }
+  }
+};
+Highcharts.setOptions(Highcharts.theme);
+
 function parse_series(branch) {
   var series_name = branch.name;
   var series_data = [];
@@ -15,6 +55,24 @@ function add_chart(bench) {
     chart_series.push(parse_series(bench.branches[i]));
   }
 
+  // Calculate chart range
+  var min = Number.MAX_SAFE_INTEGER;
+  var max = 0;
+  for (var i = 0; i < chart_series.length; i++) {
+    for (var j = 0; j < chart_series[i].data.length; j++) {
+      var avg = chart_series[i].data[j][1];
+      if (avg > max) {
+        max = avg;
+      }
+      if (avg < min) {
+        min = avg;
+      }
+    }
+  }
+  var chart_avg = (min + max) / 2;
+  var chart_min = Math.min(min, avg * 0.90);
+  var chart_max = Math.max(max, avg * 1.10);
+
   Highcharts.chart(chart_name, {
     title: {
       text: chart_name,
@@ -22,7 +80,10 @@ function add_chart(bench) {
     yAxis: {
       title: {
         text: 'Seconds'
-      }
+
+      },
+      min: chart_min,
+      max: chart_max,
     },
     xAxis: {
       type: 'datetime'
