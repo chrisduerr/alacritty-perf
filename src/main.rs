@@ -65,7 +65,7 @@ fn travis_notification(req: HttpRequest) -> FutureResponse<HttpResponse> {
             .and_then(|tr| tr.to_str().ok())
             .unwrap_or("");
         if target_repo != TARGET_REPO {
-            warn!("Attempted to start benchmark from '{}'.", target_repo);
+            warn!("Blocking invalid origin repository: '{}'", target_repo);
             return Box::new(future::ok(HttpResponse::Forbidden().into()));
         }
     }
