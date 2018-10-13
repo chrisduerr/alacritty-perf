@@ -12,18 +12,23 @@ out_path=$2
 regex='s/^test \([^ ]*\).*bench: *\([0-9,]*\).* \([0-9,]*\).$/\1;\2;\3/'
 
 # Check out the commit
+echo "Cloning '$commit'"
 dir_name="alacritty-$commit-$(date '+%N')"
 git clone --quiet https://github.com/chrisduerr/alacritty "$dir_name"
 cd "$dir_name"
 git reset --hard --quiet "$commit"
 
 # Benchmark this commit
-cargo bench --features bench 2> /dev/null
+echo "Running benchmarks"
+cargo bench --features bench &> /dev/null
+echo "Copying benchmarks"
+mkdir -p "$out_path"
 for bench in $(ls "./target/criterion"); do
-    mkdir -p "$out_path"
-    cp "./target/criterion/$bench/new/estimates.json" "$out_path/$bench" || true
+    cp "./target/criterion/$bench/new/estimates.json" "$out_path/$bench" && \
+        echo "    Copied '$bench'" || echo "    Unable to copy '$bench'"
 done
 
 # Remove build directory
+echo "Removing build artifacts"
 cd ..
 rm -rf "$dir_name"
