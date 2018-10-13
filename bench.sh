@@ -22,13 +22,13 @@ git reset --hard --quiet "$commit"
 echo "Running benchmarks"
 cargo bench --features bench &> /dev/null
 echo "Copying benchmarks"
+cd ..
 mkdir -p "$out_path"
-for bench in $(ls "./target/criterion"); do
-    cp "./target/criterion/$bench/new/estimates.json" "$out_path/$bench" && \
+for bench in $(ls "$dir_name/target/criterion"); do
+    cp "$dir_name/target/criterion/$bench/new/estimates.json" "$out_path/$bench" && \
         echo "    Copied '$bench'" || echo "    Unable to copy '$bench'"
 done
 
 # Remove build directory
 echo "Removing build artifacts"
-cd ..
 rm -rf "$dir_name"
