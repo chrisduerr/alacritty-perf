@@ -15,15 +15,13 @@ extern crate chrono;
 extern crate env_logger;
 extern crate walkdir;
 
+mod bench;
+
 use std::collections::HashMap;
-use std::fs::File;
-use std::io::Read;
-use std::process::Command;
 use std::rc::Rc;
 
 use actix_web::http::Method;
 use actix_web::{App, Binary, Body, FutureResponse, HttpMessage, HttpRequest, HttpResponse};
-use chrono::offset::Utc;
 use env_logger::Builder;
 use futures::future::{self, Future};
 use log::LevelFilter;
@@ -31,19 +29,15 @@ use openssl::hash::MessageDigest;
 use openssl::pkey::PKey;
 use openssl::rsa::Rsa;
 use openssl::sign::Verifier;
-use walkdir::{DirEntry, WalkDir};
 
 // Travis public key, can be found in https://api.travis-ci.com/config
 static PUB_KEY: &'static [u8] = b"-----BEGIN PUBLIC KEY-----\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAvtjdLkS+FP+0fPC09j25\ny/PiuYDDivIT86COVedvlElk99BBYTrqNaJybxjXbIZ1Q6xFNhOY+iTcBr4E1zJu\ntizF3Xi0V9tOuP/M8Wn4Y/1lCWbQKlWrNQuqNBmhovF4K3mDCYswVbpgTmp+JQYu\nBm9QMdieZMNry5s6aiMA9aSjDlNyedvSENYo18F+NYg1J0C0JiPYTxheCb4optr1\n5xNzFKhAkuGs4XTOA5C7Q06GCKtDNf44s/CVE30KODUxBi0MCKaxiXw/yy55zxX2\n/YdGphIyQiA5iO1986ZmZCLLW8udz9uhW5jUr3Jlp9LbmphAC61bVSf4ou2YsJaN\n0QIDAQAB\n-----END PUBLIC KEY-----";
-
-// Directory with all the benchmarks
-static RESULTS_DIR: &'static str = "./results";
 
 // Repository which will be allowed to bench from
 static TARGET_REPO: &'static str = "jwilm/alacritty";
 
 #[derive(Deserialize)]
-struct Payload {
+pub struct Payload {
     pull_request_title: String,
     pull_request_number: usize,
     pull_request: bool,
@@ -114,36 +108,7 @@ fn travis_notification(req: HttpRequest) -> FutureResponse<HttpResponse> {
                         }
                     };
 
-                    // Don't benchmark commits/PRs to branches
-                    if pl.branch != "master" {
-                        info!("Branch commit detected, skipping benchmarks");
-                        return Ok(HttpResponse::Ok().into());
-                    }
-
-                    // Create path name based on commit/pr
-                    // Following https://www.w3.org/TR/NOTE-datetime (2018-12-31T12:45:45Z)
-                    let time = Utc::now().format("%Y-%m-%dT%H:%M:%SZ");
-                    let (mut path, commit) = if pl.pull_request {
-                        (
-                            format!("{} (#{})", pl.pull_request_title, pl.pull_request_number),
-                            pl.head_commit,
-                        )
-                    } else {
-                        ("Master".to_owned(), pl.commit)
-                    };
-                    path = format!("{}/{}/{}-{}", RESULTS_DIR, path, time, commit);
-
-                    let command = format!("./bench.sh \"{}\" \"{}\" &", commit, path);
-                    info!("Running command `{}`", command);
-                    if let Err(err) = Command::new("bash")
-                        .args(&["-c", &command])
-                        .spawn()
-                        .and_then(|mut cmd| cmd.wait())
-                    {
-                        error!("Unable to start benchmark: {}", err);
-                    } else {
-                        info!("Successfully started benchmark");
-                    }
+                    bench::create(pl);
 
                     return Ok(HttpResponse::Ok().into());
                 }
@@ -154,119 +119,19 @@ fn travis_notification(req: HttpRequest) -> FutureResponse<HttpResponse> {
     )
 }
 
-#[derive(Serialize)]
-struct Bench {
-    name: String,
-    branches: Vec<Branch>,
-}
-
-#[derive(Serialize)]
-struct Branch {
-    name: String,
-    results: Vec<Result>,
-}
-
-#[derive(Serialize)]
-struct Result {
-    timestamp: String,
-    avg: u128,
-}
-
 fn results(_: HttpRequest) -> HttpResponse {
     info!("Received data request");
 
-    // Hashmap for accessing benchmarks by name
-    let mut benchmarks = HashMap::new();
+    let benches = bench::load();
 
-    for entry in WalkDir::new(RESULTS_DIR)
-        .min_depth(3)
-        .max_depth(3)
-        .into_iter()
-        .filter_entry(|e| e.metadata().map(|m| m.is_file()).unwrap_or(false))
-    {
-        if let Ok(entry) = entry {
-            info!("Processing benchmark {:?}", entry.path());
-            let bench = entry_to_result(entry);
-            if let Some(bench) = bench {
-                // Merge benchmark with existing benchmarks
-                if benchmarks.contains_key(&bench.name) {
-                    let benches = benchmarks.get_mut(&bench.name).unwrap();
-                    merge_benchmarks(benches, bench);
-                } else {
-                    benchmarks.insert(bench.name.clone(), bench);
-                }
-            }
-        }
-    }
-
-    // Convert benchmarks hashmap to an array
-    let mut bench_vec = Vec::new();
-    for (_, bench) in benchmarks.drain() {
-        bench_vec.push(bench);
-    }
-
-    let json = serde_json::to_string(&bench_vec).unwrap_or_else(|_| String::from("[]"));
+    let json = serde_json::to_string(&benches).unwrap_or_else(|_| String::from("[]"));
     info!("Sending Response:\n{}", json);
+
     let body = Body::Binary(Binary::SharedString(Rc::new(json)));
     HttpResponse::Ok()
         .content_type("application/json")
         .body(body)
         .into()
-}
-
-// Merge a single benchmark result into existing results
-fn merge_benchmarks(benches: &mut Bench, mut bench: Bench) {
-    // Add single data point to existing branch
-    for branch in benches.branches.iter_mut() {
-        if branch.name == bench.branches[0].name {
-            branch
-                .results
-                .push(bench.branches.remove(0).results.remove(0));
-            branch.results.sort_by(|a, b| a.timestamp.cmp(&b.timestamp));
-            return;
-        }
-    }
-
-    // If branch does not exist already, add complete branch
-    benches.branches.push(bench.branches.remove(0));
-}
-
-fn entry_to_result(entry: DirEntry) -> Option<Bench> {
-    // Result's name
-    let name = entry.file_name().to_string_lossy();
-    info!("    NAME: {}", name);
-
-    // Result's commit timestamp
-    let parent = entry.path().parent()?;
-    let commit = parent.file_name()?.to_string_lossy();
-    let timestamp_len = "YYYY-MM-DDTHH:MM:SSZ".len();
-    let timestamp = &commit[..timestamp_len];
-    info!("    TIMESTAMP: {}", timestamp);
-
-    // Result's branch
-    let branch_parent = parent.parent()?;
-    let branch = branch_parent.file_name()?.to_string_lossy();
-    info!("    BRANCH: {}", branch);
-
-    // Result's avg time
-    let mut content = String::new();
-    File::open(entry.path())
-        .and_then(|mut f| f.read_to_string(&mut content))
-        .ok()?;
-    let avg = u128::from_str_radix(content.trim(), 10).ok()?;
-    info!("    AVG: {}", avg);
-
-    // Create a benchmark with just a single data point
-    Some(Bench {
-        name: name.into(),
-        branches: vec![Branch {
-            name: branch.to_string(),
-            results: vec![Result {
-                timestamp: timestamp.to_owned(),
-                avg,
-            }],
-        }],
-    })
 }
 
 fn main() {

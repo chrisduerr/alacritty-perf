@@ -18,15 +18,11 @@ cd "$dir_name"
 git reset --hard --quiet "$commit"
 
 # Benchmark this commit
-result=$(cargo bench --features bench 2> /dev/null | grep "... bench:" | sed "$regex")
-cd ..
-for bench in $(echo -e "$result"); do
-    name=$(echo "$bench" | sed 's/\([^;]*\);.*/\1/')
-    avg=$(echo "$bench" | sed 's/.*;\(.*\);.*/\1/' | sed 's/,//')
-    # # dev=$(echo "$bench" | sed 's/.*;\(.*\)/\1/' | sed 's/,//')
-    mkdir -p "$out_path"
-    echo "$avg" > "$out_path/$name"
+cargo bench --features bench
+for bench in $(ls "./target/criterion"); do
+    cp "./target/criterion/$bench/new/estimates.json" "$out_path/$bench" || true
 done
 
 # Remove build directory
+cd ..
 rm -rf "$dir_name"
