@@ -150,7 +150,7 @@ fn deserialize(entry: DirEntry) -> Option<Bench> {
         .and_then(|mut f| f.read_to_string(&mut content))
         .ok()?;
     let estimates = serde_json::from_str(&content).ok()?;
-    info!("    AVG: {:?}", estimates);
+    info!("    ESTIMATES:\n{:?}\n", estimates);
 
     // Create a benchmark with just a single data point
     Some(Bench {

@@ -125,7 +125,7 @@ fn results(_: HttpRequest) -> HttpResponse {
     let benches = bench::load();
 
     let json = serde_json::to_string(&benches).unwrap_or_else(|_| String::from("[]"));
-    info!("Sending Response:\n{}", json);
+    info!("Sending Response:\n{}\n", json);
 
     let body = Body::Binary(Binary::SharedString(Rc::new(json)));
     HttpResponse::Ok()

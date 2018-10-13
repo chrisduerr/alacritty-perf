@@ -3,18 +3,10 @@ body {
 }
 
 #chart-container {
-  grid-template-columns: repeat(6, 16%);
+  grid-template-columns: 50% 50%;
   display: grid;
 }
 
 .chart {
   margin: 10px;
-}
-
-.chart-row-1 {
-  grid-column-end: span 3;
-}
-
-.chart-row-2 {
-  grid-column-end: span 3;
 }

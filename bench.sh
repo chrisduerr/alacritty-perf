@@ -18,8 +18,9 @@ cd "$dir_name"
 git reset --hard --quiet "$commit"
 
 # Benchmark this commit
-cargo bench --features bench
+cargo bench --features bench 2> /dev/null
 for bench in $(ls "./target/criterion"); do
+    mkdir -p "$out_path"
     cp "./target/criterion/$bench/new/estimates.json" "$out_path/$bench" || true
 done
 

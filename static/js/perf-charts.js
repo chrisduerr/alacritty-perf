@@ -52,7 +52,7 @@ function parse_series(branch) {
   var series_data = [];
   for (var i = 0; i < branch.results.length; i++) {
     var result = branch.results[i];
-    series_data.push([Date.parse(result.timestamp), result.avg]);
+    series_data.push([Date.parse(result.timestamp), result.slope.point_estimate]);
   }
   return { data: series_data, name: series_name };
 }
@@ -82,6 +82,13 @@ function add_chart(bench) {
   var chart_min = Math.min(min, avg * 0.90);
   var chart_max = Math.max(max, avg * 1.10);
 
+  /* Create a new DOM element */
+  var elem = document.createElement("div");
+  elem.setAttribute("id", chart_name);
+  elem.classList.add("chart");
+  document.getElementById("chart-container").appendChild(elem);
+
+  /* Create a new chart */
   Highcharts.chart(chart_name, {
     title: {
       text: chart_name,
