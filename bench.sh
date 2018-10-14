@@ -14,7 +14,7 @@ regex='s/^test \([^ ]*\).*bench: *\([0-9,]*\).* \([0-9,]*\).$/\1;\2;\3/'
 # Check out the commit
 echo "Cloning '$commit'"
 dir_name="alacritty-$commit-$(date '+%N')"
-git clone --quiet https://github.com/chrisduerr/alacritty "$dir_name"
+git clone --quiet https://github.com/jwilm/alacritty "$dir_name"
 cd "$dir_name"
 git reset --hard --quiet "$commit"
 
