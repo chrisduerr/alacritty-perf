@@ -12,26 +12,26 @@ use Payload;
 static RESULTS_DIR: &'static str = "./results";
 
 #[derive(Debug, Serialize)]
-struct Bench {
+pub struct Bench {
     name: String,
     branches: Vec<Branch>,
 }
 
 #[derive(Debug, Serialize)]
-struct Branch {
+pub struct Branch {
     name: String,
     results: Vec<Result>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-struct Result {
+pub struct Result {
     timestamp: String,
     #[serde(flatten)]
     estimates: Estimates,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-struct Estimates {
+pub struct Estimates {
     #[serde(rename = "Mean")]
     mean: Metric,
     #[serde(rename = "Median")]
@@ -45,14 +45,14 @@ struct Estimates {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-struct Metric {
+pub struct Metric {
     confidence_interval: ConfidenceInterval,
     point_estimate: f64,
     standard_error: f64,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-struct ConfidenceInterval {
+pub struct ConfidenceInterval {
     confidence_level: f64,
     lower_bound: f64,
     upper_bound: f64,
@@ -93,7 +93,7 @@ pub fn create(payload: Payload) {
     }
 }
 
-pub fn load() {
+pub fn load() -> Vec<Bench> {
     // Hashmap for accessing benchmarks by name
     let mut benchmarks = HashMap::new();
 
@@ -125,6 +125,8 @@ pub fn load() {
     for (_, bench) in benchmarks.drain() {
         bench_vec.push(bench);
     }
+
+    bench_vec
 }
 
 fn deserialize(entry: DirEntry) -> Option<Bench> {
