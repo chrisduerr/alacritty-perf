@@ -52,7 +52,7 @@ function parse_series(branch) {
   var series_data = [];
   for (var i = 0; i < branch.results.length; i++) {
     var result = branch.results[i];
-    series_data.push([Date.parse(result.timestamp), result.slope.point_estimate]);
+    series_data.push([Date.parse(result.timestamp), result.Slope.point_estimate]);
   }
   return { data: series_data, name: series_name };
 }
